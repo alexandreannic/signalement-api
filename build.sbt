@@ -42,9 +42,10 @@ libraryDependencies ++= Seq(
   "com.itextpdf" % "itext7-core" % "7.1.8",
   "com.itextpdf" % "html2pdf" % "2.1.5",
 
-  specs2 % Test,
-
   "io.sentry" % "sentry-logback" % "1.7.14",
+
+  "org.scalacheck" %% "scalacheck" % "1.14.2" % Test,
+  specs2 % Test,
 )
 
 resolvers += "Atlassian Releases" at "https://maven.atlassian.com/public/"
