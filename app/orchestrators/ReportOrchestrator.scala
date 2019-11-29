@@ -254,7 +254,7 @@ class ReportOrchestrator @Inject()(reportRepository: ReportRepository,
     mailerService.sendEmail(
       from = mailFrom,
       recipients = report.email)(
-      subject = "Le professionnel a répondu à votre signalement",
+      subject = "L'entreprise a répondu à votre signalement",
       bodyHtml = views.html.mails.consumer.reportToConsumerAcknowledgmentPro(report, reportResponse).toString,
       attachments = Seq(
         AttachmentFile("logo-signal-conso.png", environment.getFile("/appfiles/logo-signal-conso.png"), contentId = Some("logo"))
