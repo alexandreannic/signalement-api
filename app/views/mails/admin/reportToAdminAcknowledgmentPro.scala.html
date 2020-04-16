@@ -38,23 +38,15 @@
         }
     </ul>
     <ul>
-    @if(report.companySiret.isDefined) {
         <li>
-            Nom de l'entreprise : @report.companyName.get
+            Nom de l'entreprise : @report.companyName
         </li>
         <li>
-            Adresse de l'entreprise : @report.companyAddress.get
+            Adresse de l'entreprise : @report.companyAddress
         </li>
         <li>
-            Siret : @report.companySiret.get
+            Siret : @report.companySiret
         </li>
-
-    }
-    @if(report.websiteURL.isDefined) {
-        <li>
-            Site internet : @report.shortURL.get
-        </li>
-    }
     </ul>
     <ul>
         <li>

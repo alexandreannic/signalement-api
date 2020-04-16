@@ -5,21 +5,19 @@ import java.util.UUID
 
 import com.github.tminglei.slickpg.composite.Struct
 import play.api.libs.json._
-import play.api.data.validation.ValidationError
 import utils.Constants.ActionEvent.ActionEventValue
 import utils.Constants.ReportStatus._
-import utils.{EmailAddress, SIRET, URL}
+import utils.{EmailAddress, SIRET}
 
 
 case class DraftReport(
                         category: String,
                         subcategories: List[String],
                         details: List[DetailInputValue],
-                        companyName: Option[String],
-                        companyAddress: Option[String],
-                        companyPostalCode: Option[String],
-                        companySiret: Option[SIRET],
-                        websiteURL: Option[URL],
+                        companyName: String,
+                        companyAddress: String,
+                        companyPostalCode: String,
+                        companySiret: SIRET,
                         firstName: String,
                         lastName: String,
                         email: EmailAddress,
@@ -28,8 +26,13 @@ case class DraftReport(
                         fileIds: List[UUID]
                       ) {
 
+
+  def initialStatus() = {
+    if (employeeConsumer) EMPLOYEE_REPORT else TRAITEMENT_EN_COURS
+  }
+
   def generateReport: Report = {
-    val report = Report(
+    Report(
       UUID.randomUUID(),
       category,
       subcategories,
@@ -37,24 +40,20 @@ case class DraftReport(
       None,
       companyName,
       companyAddress,
-      companyPostalCode,
-      companySiret,
-      None,
-      websiteURL,
+      Some(companyPostalCode),
+      Some(companySiret),
       OffsetDateTime.now(),
       firstName,
       lastName,
       email,
       contactAgreement,
       employeeConsumer,
-      NA
+      initialStatus()
     )
-    report.copy(status = report.initialStatus)
   }
 }
 object DraftReport {
-  implicit val draftReportReads = Json.reads[DraftReport].filter(draft => draft.companySiret.isDefined || draft.websiteURL.isDefined)
-  implicit val draftReportWrites = Json.writes[DraftReport]
+  implicit val draftReportFormat = Json.format[DraftReport]
 }
 
 case class Report(
@@ -63,12 +62,10 @@ case class Report(
                    subcategories: List[String],
                    details: List[DetailInputValue],
                    companyId: Option[UUID],
-                   companyName: Option[String],
-                   companyAddress: Option[String],
+                   companyName: String,
+                   companyAddress: String,
                    companyPostalCode: Option[String],
                    companySiret: Option[SIRET],
-                   websiteId: Option[UUID],
-                   websiteURL: Option[URL],
                    creationDate: OffsetDateTime,
                    firstName: String,
                    lastName: String,
@@ -79,12 +76,8 @@ case class Report(
                  ) {
 
   def initialStatus() = {
-    if (employeeConsumer) EMPLOYEE_REPORT
-    else if (companySiret.isDefined) TRAITEMENT_EN_COURS
-    else NA
+    if (employeeConsumer) EMPLOYEE_REPORT else TRAITEMENT_EN_COURS
   }
-
-  def shortURL() = websiteURL.map(_.value.replaceFirst("^(http[s]?://www\\.|http[s]?://|www\\.)",""))
 }
 
 object Report {
@@ -105,8 +98,7 @@ object Report {
         "creationDate" -> report.creationDate,
         "contactAgreement" -> report.contactAgreement,
         "employeeConsumer" -> report.employeeConsumer,
-        "status" -> report.status,
-        "websiteURL" -> report.websiteURL
+        "status" -> report.status
       ) ++ ((userRole, report.contactAgreement) match {
         case (Some(UserRoles.Pro), false) => Json.obj()
         case (_, _) => Json.obj(

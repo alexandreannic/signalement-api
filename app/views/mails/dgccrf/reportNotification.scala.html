@@ -51,19 +51,10 @@
                         }
 
                         <br />
-
-                        @if(report.companyAddress.isDefined) {
                         <b>Entreprise</b>
                         <p style="text-align: center;">
-                        @views.html.fragments.address(report.companyAddress.get)
+                        @views.html.fragments.address(report.companyAddress)
                         </p>
-                        }
-                        @if(report.websiteURL.isDefined) {
-                        <b>Site web</b>
-                        <p style="text-align: center;">
-                        Site internet : @report.shortURL.get
-                        </p>
-                        }
 
                     </div>
                 }
