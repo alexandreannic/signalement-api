@@ -11,7 +11,7 @@ import java.time.LocalDateTime
 
 import javax.inject.{Inject, Singleton}
 import com.norbitltd.spoiwo.model._
-import com.norbitltd.spoiwo.model.enums.{CellFill, CellHorizontalAlignment, CellVerticalAlignment}
+import com.norbitltd.spoiwo.model.enums.{CellFill, CellHorizontalAlignment, CellStyleInheritance, CellVerticalAlignment}
 import com.norbitltd.spoiwo.natures.xlsx.Model2XlsxConversions._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -36,7 +36,8 @@ object ReportsExtractActor {
                         end: Option[String],
                         category: Option[String],
                         status: Option[String],
-                        details: Option[String])
+                        details: Option[String],
+                        hasCompany: Option[Boolean])
   case class ExtractRequest(requestedBy: User, restrictToCompany: Option[Company], filters: RawFilters)
 }
 
@@ -116,18 +117,23 @@ class ReportsExtractActor @Inject()(configuration: Configuration,
       ),
       ReportColumn(
         "Nom de l'entreprise", leftAlignmentColumn,
-        (report, _, _, _) => report.companyName,
+        (report, _, _, _) => report.companyName.getOrElse(""),
         available = List(UserRoles.DGCCRF, UserRoles.Admin) contains requestedBy.userRole
       ),
       ReportColumn(
         "Adresse de l'entreprise", leftAlignmentColumn,
-        (report, _, _, _) => report.companyAddress,
+        (report, _, _, _) => report.companyAddress.map(_.value).getOrElse(""),
         available = List(UserRoles.DGCCRF, UserRoles.Admin) contains requestedBy.userRole
       ),
       ReportColumn(
         "Email de l'entreprise", centerAlignmentColumn,
         (report, _, _, companyAdmins) => companyAdmins.map(_.email).mkString(","),
         available=requestedBy.userRole == UserRoles.Admin
+      ),
+      ReportColumn(
+        "Site web de l'entreprise", centerAlignmentColumn,
+        (report, _, _, _) => report.websiteURL.map(_.value).getOrElse(""),
+        available = List(UserRoles.DGCCRF, UserRoles.Admin) contains requestedBy.userRole
       ),
       ReportColumn(
         "Catégorie", leftAlignmentColumn,
@@ -203,16 +209,21 @@ class ReportsExtractActor @Inject()(configuration: Configuration,
         "Actions DGCCRF", leftAlignmentColumn,
         (report, _, events, _) =>
           events.filter(event => event.eventType == Constants.EventType.DGCCRF)
-          .map(event => s"Le ${event.creationDate.get.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))} : ${event.action.value} - ${event.details.as[JsObject].value.get("description").getOrElse("")}")
+          .map(event => s"Le ${event.creationDate.get.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))} : ${event.action.value} - ${event.getDescription}")
           .mkString("\n"),
-        available=requestedBy.userRole == UserRoles.DGCCRF
+        available = requestedBy.userRole == UserRoles.DGCCRF
+      ),
+      ReportColumn(
+        "Contrôle effectué", centerAlignmentColumn,
+        (report, _, events, _) => if (events.exists(event => event.action == Constants.ActionEvent.CONTROL)) "Oui" else "Non",
+        available = requestedBy.userRole == UserRoles.DGCCRF
       )
     ).filter(_.available)
   }
 
   def genTmpFile(requestedBy: User, restrictToCompany: Option[Company], filters: RawFilters) = {
     val startDate = DateUtils.parseDate(filters.start)
-    val endDate = DateUtils.parseEndDate(filters.end)
+    val endDate = DateUtils.parseDate(filters.end)
     val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
     val reportColumns = buildColumns(requestedBy)
@@ -220,7 +231,7 @@ class ReportsExtractActor @Inject()(configuration: Configuration,
     for {
       paginatedReports <- reportRepository.getReports(
         0,
-        10000,
+        100000,
         ReportFilter(
           filters.departments,
           None,
@@ -234,7 +245,8 @@ class ReportsExtractActor @Inject()(configuration: Configuration,
           requestedBy.userRole match {
             case UserRoles.Pro => Some(false)
             case _ => None
-          }
+          },
+          filters.hasCompany
         )
       )
       reportFilesMap <- reportRepository.prefetchReportsFiles(paginatedReports.entities.map(_.id))
@@ -246,14 +258,14 @@ class ReportsExtractActor @Inject()(configuration: Configuration,
         .withRows(
           Row(style = headerStyle).withCellValues(reportColumns.map(_.name)) ::
           paginatedReports.entities.map(report =>
-            Row().withCellValues(reportColumns.map(
+            Row().withCells(reportColumns.map(
               _.extract(
                 report,
                 reportFilesMap.getOrElse(report.id, Nil),
                 reportEventsMap.getOrElse(report.id, Nil),
                 report.companyId.flatMap(companyAdminsMap.get(_)).getOrElse(Nil)
               )
-            ))
+            ).map(StringCell(_, None, None, CellStyleInheritance.CellThenRowThenColumnThenSheet)))
           )
         )
         .withColumns(reportColumns.map(_.column))
